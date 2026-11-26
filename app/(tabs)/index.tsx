@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AreaChips } from '@/components/AreaChips';
 import { TaskCard } from '@/components/TaskCard';
 import { TimerBanners } from '@/components/TimerBanners';
-import { Button, Empty, SectionHeader, colors } from '@/components/ui';
+import { Banner, Button, Empty, SectionHeader, colors } from '@/components/ui';
 import { useBoard } from '@/hooks/useBoard';
 import { useNow } from '@/hooks/useNow';
 import { groupTasks, needsParallelConfirm, suggestNext } from '@/lib/board';
@@ -17,9 +17,11 @@ import type { BoardTask } from '@/lib/types';
 export default function NowScreen() {
   const insets = useSafeAreaInsets();
   const now = useNow();
-  const { tasks, catalogs, loading, error, areaFilter, setAreaFilter, act } = useBoard();
+  const { tasks, catalogs, loading, error, notice, setNotice, areaFilter, setAreaFilter, act } = useBoard();
   const [showBacklog, setShowBacklog] = useState(true);
   const groups = useMemo(() => groupTasks(tasks, now, areaFilter), [tasks, now, areaFilter]);
+  // Las activas de TODAS las áreas: el filtro no debe esconder tareas al contar el paralelo.
+  const activeTotal = useMemo(() => tasks.filter((t) => t.status === 'started' && t.is_active).length, [tasks]);
   const byId = useMemo(
     () => ({
       area: new Map(catalogs.areas.map((a) => [a.id, a])),
@@ -30,10 +32,10 @@ export default function NowScreen() {
   );
 
   async function activate(task: BoardTask) {
-    if (needsParallelConfirm(groups.active.length)) {
+    if (needsParallelConfirm(activeTotal)) {
       const ok = await confirmAsync(
         'Varias tareas a la vez',
-        `Ya tienes ${groups.active.length} activas. ¿Activar también "${task.title}"? El tiempo se repartirá entre todas.`,
+        `Ya tienes ${activeTotal} activas. ¿Activar también "${task.title}"? El tiempo se repartirá entre todas.`,
         'Activar'
       );
       if (!ok) return;
@@ -66,6 +68,9 @@ export default function NowScreen() {
       <AreaChips areas={catalogs.areas} selected={areaFilter} onSelect={setAreaFilter} />
       <ScrollView contentContainerStyle={styles.content}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {notice ? (
+          <Banner tone="warn" text={notice} testID="notice" actions={<Button label="Entendido" variant="ghost" onPress={() => setNotice(null)} />} />
+        ) : null}
         {!loading && catalogs.areas.length === 0 ? <FirstUse /> : null}
         <TimerBanners active={groups.active} now={now} act={act} />
 
@@ -120,11 +125,17 @@ export default function NowScreen() {
 /** Primer uso: sin áreas no se pueden crear tareas. Ofrece tres genéricas editables. */
 function FirstUse() {
   const { act } = useBoard();
+  const [busy, setBusy] = useState(false);
+  async function create() {
+    setBusy(true);
+    await act(() => q.createDefaultAreas());
+    setBusy(false);
+  }
   return (
     <View style={styles.firstUse} testID="first-use">
       <Text style={styles.firstUseTitle}>Empecemos</Text>
       <Text style={styles.muted}>Cada tarea pertenece a un área. Puedes crear tres por defecto y renombrarlas después en Ajustes.</Text>
-      <Button label="Crear Trabajo, Personal y Estudios" variant="primary" onPress={() => void act(() => q.createDefaultAreas())} testID="create-default-areas" />
+      <Button label={busy ? 'Creando…' : 'Crear Trabajo, Personal y Estudios'} variant="primary" disabled={busy} onPress={() => void create()} testID="create-default-areas" />
     </View>
   );
 }

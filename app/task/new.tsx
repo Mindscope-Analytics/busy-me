@@ -11,7 +11,7 @@ const AREA_COLORS = ['#2563eb', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#db
 
 /** Alta de tarea. Solicitante, tipo y área se pueden crear en línea. */
 export default function NewTaskScreen() {
-  const { catalogs, refresh } = useBoard();
+  const { catalogs, refresh, setNotice } = useBoard();
   const today = toBusinessDate(new Date());
 
   const [title, setTitle] = useState('');
@@ -81,7 +81,7 @@ export default function NewTaskScreen() {
 
   async function save() {
     if (!areaId) return setError('Elige o crea un área.');
-    const id = await run(() =>
+    const created = await run(() =>
       q.createTask(
         {
           title,
@@ -96,7 +96,10 @@ export default function NewTaskScreen() {
         startNow
       )
     );
-    if (id) router.back();
+    if (created) {
+      if (created.startError) setNotice(created.startError);
+      router.back();
+    }
   }
 
   return (
