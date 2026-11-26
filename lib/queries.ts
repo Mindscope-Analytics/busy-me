@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 import { isValidYmd } from '@/lib/time';
-import type { Area, BoardTask, Project, Requester, WorkType } from '@/lib/types';
+import type { Area, BoardTask, Project, Requester, TimeAllocated, TimeEntry, WorkType } from '@/lib/types';
 
 const uuid = z.string().uuid();
 const name = z.string().trim().min(1, 'Escribe un nombre.').max(80, 'Máximo 80 caracteres.');
@@ -121,7 +121,108 @@ export function errorMessage(e: unknown): string {
     if (/network|fetch/i.test(e.message)) return 'Sin conexión. Inténtalo de nuevo.';
     if (/cannot be activated|cannot be started|cannot be reopened/.test(e.message)) return 'Esa tarea ya está cerrada.';
     if (/not found/.test(e.message)) return 'La tarea ya no existe.';
+    if (/tasks_area_id_fkey|violates foreign key/.test(e.message)) return 'No se puede borrar: tiene tareas asociadas.';
+    if (/ended_after_started/.test(e.message)) return 'El fin debe ser posterior al inicio.';
+    if (/solo se (crea|modifica) con/.test(e.message)) return 'Pausa el cronómetro antes de editar ese tramo.';
     return e.message;
   }
   return 'Algo salió mal.';
+}
+
+// ── Detalle de tarea ─────────────────────────────────────────────────────────────────────
+export const taskPatchSchema = newTaskSchema.partial();
+export type TaskPatch = z.infer<typeof taskPatchSchema>;
+
+export async function updateTask(taskId: string, patch: TaskPatch): Promise<void> {
+  const row = taskPatchSchema.parse(patch);
+  unwrap(await supabase.from('tasks').update(row).eq('id', uuid.parse(taskId)));
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+  unwrap(await supabase.from('tasks').delete().eq('id', uuid.parse(taskId)));
+}
+
+export async function fetchTimeEntries(taskId: string): Promise<TimeEntry[]> {
+  return unwrap(
+    await supabase
+      .from('time_entries')
+      .select('id,task_id,started_at,ended_at,duration_seconds,note')
+      .eq('task_id', uuid.parse(taskId))
+      .order('started_at', { ascending: false })
+  );
+}
+
+export async function fetchAllocated(taskId: string): Promise<TimeAllocated[]> {
+  return unwrap(
+    await supabase
+      .from('v_time_allocated')
+      .select('time_entry_id,task_id,day,clock_seconds,allocated_seconds')
+      .eq('task_id', uuid.parse(taskId))
+  );
+}
+
+const isoDate = z.string().datetime({ offset: true });
+export const manualEntrySchema = z
+  .object({
+    task_id: uuid,
+    started_at: isoDate,
+    ended_at: isoDate,
+    note: z.string().trim().max(500).nullable(),
+  })
+  .refine((e) => new Date(e.ended_at) > new Date(e.started_at), { message: 'El fin debe ser posterior al inicio.' });
+
+/** Tramo manual: siempre cerrado (los abiertos solo se crean con activate_task). */
+export async function insertManualEntry(input: z.input<typeof manualEntrySchema>): Promise<void> {
+  const row = manualEntrySchema.parse(input);
+  unwrap(await supabase.from('time_entries').insert(row));
+}
+
+export const entryPatchSchema = z
+  .object({ started_at: isoDate, ended_at: isoDate, note: z.string().trim().max(500).nullable() })
+  .refine((e) => new Date(e.ended_at) > new Date(e.started_at), { message: 'El fin debe ser posterior al inicio.' });
+
+/** Corrige un tramo CERRADO. Un tramo abierto no se edita: primero se pausa. */
+export async function updateTimeEntry(entryId: string, patch: z.input<typeof entryPatchSchema>): Promise<void> {
+  const row = entryPatchSchema.parse(patch);
+  unwrap(await supabase.from('time_entries').update(row).eq('id', uuid.parse(entryId)));
+}
+
+export async function deleteTimeEntry(entryId: string): Promise<void> {
+  unwrap(await supabase.from('time_entries').delete().eq('id', uuid.parse(entryId)));
+}
+
+/**
+ * "Cortar a las HH:mm": cierra el cronómetro por RPC y recorta el fin del tramo recién cerrado
+ * al instante de corte (edición de un tramo ya cerrado, permitida por la guarda).
+ */
+export async function cutTimerAt(taskId: string, cutoff: Date): Promise<void> {
+  uuid.parse(taskId);
+  await pauseTask(taskId);
+  const entries = await fetchTimeEntries(taskId);
+  const last = entries.find((e) => e.ended_at !== null);
+  if (!last) return;
+  if (cutoff > new Date(last.started_at) && cutoff < new Date(last.ended_at as string)) {
+    await updateTimeEntry(last.id, { started_at: last.started_at, ended_at: cutoff.toISOString(), note: last.note });
+  }
+}
+
+// ── Ajustes: catálogos ───────────────────────────────────────────────────────────────────
+export async function updateArea(areaId: string, patch: Partial<NewArea>): Promise<void> {
+  const row = newAreaSchema.partial().parse(patch);
+  unwrap(await supabase.from('areas').update(row).eq('id', uuid.parse(areaId)));
+}
+export async function deleteArea(areaId: string): Promise<void> {
+  unwrap(await supabase.from('areas').delete().eq('id', uuid.parse(areaId)));
+}
+export async function renameRequester(id: string, newName: string): Promise<void> {
+  unwrap(await supabase.from('requesters').update({ name: name.parse(newName) }).eq('id', uuid.parse(id)));
+}
+export async function deleteRequester(id: string): Promise<void> {
+  unwrap(await supabase.from('requesters').delete().eq('id', uuid.parse(id)));
+}
+export async function renameWorkType(id: string, newName: string): Promise<void> {
+  unwrap(await supabase.from('work_types').update({ name: name.parse(newName) }).eq('id', uuid.parse(id)));
+}
+export async function deleteWorkType(id: string): Promise<void> {
+  unwrap(await supabase.from('work_types').delete().eq('id', uuid.parse(id)));
 }

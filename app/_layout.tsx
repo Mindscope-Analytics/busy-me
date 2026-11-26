@@ -9,6 +9,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="task/new" options={{ presentation: 'modal', headerShown: true, title: 'Nueva tarea' }} />
+        <Stack.Screen name="task/[id]" options={{ headerShown: true, title: 'Tarea' }} />
         <Stack.Screen name="auth/login" />
         <Stack.Screen name="auth/verify" />
       </Stack>

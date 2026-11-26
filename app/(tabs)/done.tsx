@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +34,7 @@ export default function DoneScreen() {
             area={areas.get(t.area_id)}
             requester={t.requester_id ? requesters.get(t.requester_id) : undefined}
             actions={[{ label: 'Reabrir', onPress: () => void act(() => q.reopenTask(t.id)), testID: 'reopen' }]}
+            onOpen={() => router.push({ pathname: '/task/[id]', params: { id: t.id } })}
           />
         ))}
       </ScrollView>

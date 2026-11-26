@@ -87,3 +87,21 @@ describe('calendario', () => {
     expect(formatBusinessTime(at)).toBe('21:05');
   });
 });
+
+describe('fecha-hora de negocio (edición de tramos)', () => {
+  const { formatBusinessDateTime, parseBusinessDateTime } = jest.requireActual('../lib/time');
+  it('formatea en CDMX', () => {
+    expect(formatBusinessDateTime(new Date('2026-01-16T05:30:00Z'))).toBe('2026-01-15 23:30');
+  });
+  it('parsea en CDMX (UTC-6) y hace el viaje de ida y vuelta', () => {
+    const d = parseBusinessDateTime('2026-01-15 23:30');
+    expect(d?.toISOString()).toBe('2026-01-16T05:30:00.000Z');
+    expect(formatBusinessDateTime(d as Date)).toBe('2026-01-15 23:30');
+    expect(parseBusinessDateTime('2026-07-01 9:05')?.toISOString()).toBe('2026-07-01T15:05:00.000Z');
+  });
+  it('rechaza formatos y valores inválidos', () => {
+    expect(parseBusinessDateTime('15/01/2026 10:00')).toBeNull();
+    expect(parseBusinessDateTime('2026-02-30 10:00')).toBeNull();
+    expect(parseBusinessDateTime('2026-01-15 24:00')).toBeNull();
+  });
+});

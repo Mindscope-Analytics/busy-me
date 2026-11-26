@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AreaChips } from '@/components/AreaChips';
 import { TaskCard } from '@/components/TaskCard';
+import { TimerBanners } from '@/components/TimerBanners';
 import { Button, Empty, SectionHeader, colors } from '@/components/ui';
 import { useBoard } from '@/hooks/useBoard';
 import { useNow } from '@/hooks/useNow';
@@ -52,6 +53,7 @@ export default function NowScreen() {
       requester={t.requester_id ? byId.requester.get(t.requester_id) : undefined}
       workType={t.work_type_id ? byId.workType.get(t.work_type_id) : undefined}
       actions={actions}
+      onOpen={() => router.push({ pathname: '/task/[id]', params: { id: t.id } })}
     />
   );
 
@@ -65,6 +67,7 @@ export default function NowScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {!loading && catalogs.areas.length === 0 ? <FirstUse /> : null}
+        <TimerBanners active={groups.active} now={now} act={act} />
 
         <SectionHeader
           title="Activas"
