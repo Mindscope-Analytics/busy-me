@@ -157,7 +157,13 @@ describe('detalle: tramos y edición de tarea', () => {
   it('cutTimerAt: pausa por RPC y recorta el tramo recién cerrado solo si el corte cae dentro', async () => {
     const started = '2026-01-10T10:00:00.000Z';
     mock.push({ data: 1 }); // pause_task
-    mock.push({ data: [{ id: ENTRY, task_id: TASK, started_at: started, ended_at: '2026-01-10T15:00:00.000Z', duration_seconds: 18000, note: null }] });
+    // Un tramo manual con inicio posterior pero fin anterior no debe ser el elegido.
+    mock.push({
+      data: [
+        { id: '44444444-4444-4444-8444-444444444444', task_id: TASK, started_at: '2026-01-10T12:00:00.000Z', ended_at: '2026-01-10T12:30:00.000Z', duration_seconds: 1800, note: null },
+        { id: ENTRY, task_id: TASK, started_at: started, ended_at: '2026-01-10T15:00:00.000Z', duration_seconds: 18000, note: null },
+      ],
+    });
     mock.push({ data: null }); // update
     await q.cutTimerAt(TASK, new Date('2026-01-10T14:00:00.000Z'));
     expect(mock.calls[0]).toMatchObject({ rpc: 'pause_task', args: { p_task_id: TASK } });

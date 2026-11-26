@@ -138,7 +138,7 @@ export function errorMessage(e: unknown): string {
     if (/network|fetch/i.test(e.message)) return 'Sin conexión. Inténtalo de nuevo.';
     if (/cannot be activated|cannot be started|cannot be reopened/.test(e.message)) return 'Esa tarea ya está cerrada.';
     if (/not found/.test(e.message)) return 'La tarea ya no existe.';
-    if (/tasks_area_id_fkey|violates foreign key/.test(e.message)) return 'No se puede borrar: tiene tareas asociadas.';
+    if (/tasks_area_id_fkey/.test(e.message)) return 'No se puede borrar el área: tiene tareas asociadas.';
     if (/ended_after_started/.test(e.message)) return 'El fin debe ser posterior al inicio.';
     if (/solo se (crea|modifica) con/.test(e.message)) return 'Pausa el cronómetro antes de editar ese tramo.';
     return e.message;
@@ -218,9 +218,13 @@ export async function cutTimerAt(taskId: string, cutoff: Date): Promise<void> {
   uuid.parse(taskId);
   await pauseTask(taskId);
   const entries = await fetchTimeEntries(taskId);
-  const last = entries.find((e) => e.ended_at !== null);
+  // El tramo recién pausado es el cerrado con el fin más reciente (un tramo manual con inicio
+  // posterior no lo desplaza).
+  const last = entries
+    .filter((e): e is TimeEntry & { ended_at: string } => e.ended_at !== null)
+    .sort((a, b) => b.ended_at.localeCompare(a.ended_at))[0];
   if (!last) return;
-  if (cutoff > new Date(last.started_at) && cutoff < new Date(last.ended_at as string)) {
+  if (cutoff > new Date(last.started_at) && cutoff < new Date(last.ended_at)) {
     await updateTimeEntry(last.id, { started_at: last.started_at, ended_at: cutoff.toISOString(), note: last.note });
   }
 }

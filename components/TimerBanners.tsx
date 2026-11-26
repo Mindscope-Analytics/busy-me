@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Banner } from '@/components/ui';
 import { forgottenCutoff, forgottenTimers, isLateEveningWithActive } from '@/lib/board';
 import * as q from '@/lib/queries';
-import { formatBusinessTime } from '@/lib/time';
+import { formatBusinessTime, toBusinessDate } from '@/lib/time';
 import type { BoardTask } from '@/lib/types';
 
 /**
@@ -16,7 +16,7 @@ export function TimerBanners({ active, now, act }: { active: BoardTask[]; now: D
   const dismiss = (key: string) => setDismissed((s) => new Set(s).add(key));
 
   const forgotten = forgottenTimers(active, now).filter((t) => !dismissed.has(`${t.id}:${t.active_since}`));
-  const lateKey = `late:${now.toDateString()}`;
+  const lateKey = `late:${toBusinessDate(now)}`; // la "noche" se corta a la medianoche de la CDMX, no del dispositivo
   const late = isLateEveningWithActive(active, now) && !dismissed.has(lateKey);
 
   return (
