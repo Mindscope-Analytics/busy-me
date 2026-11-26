@@ -36,6 +36,19 @@ supabase test db                           # pgTAP
 pnpm export:web && pnpm e2e:web            # Playwright sobre dist/
 ```
 
+## Pantallas (Fase 1a)
+
+- **Ahora**: Activas (cronómetro en vivo, Pausar/Finalizar/Pausar todas), Pendientes (vencidas →
+  ≤ 3 días → resto), Por iniciar (colapsable), filtro por área, "+ Tarea". Avisos: a las 4 h
+  activa ("¿Sigues en esto?" · Seguir / Cortar a las HH:mm) y después de las 21:00 con activas.
+- **Completadas**: últimos 30 días, Reabrir.
+- **Detalle de tarea** (toca una tarjeta): editar campos, tramos de tiempo (corregir inicio/fin,
+  borrar, agregar manual), "Reloj Xh Ym · Asignado Xh Ym", borrar tarea.
+- **Ajustes**: áreas (nombre, color, clasificar por tipo), solicitantes y tipos por área.
+
+Regla de la base: el estado de una tarea y los tramos abiertos solo cambian por RPC
+(`docs/adr/0006-estado-y-cronometros-solo-por-rpc.md`).
+
 ## Términos privados (repo público)
 
 Todo texto que llega a GitHub (mensajes de commit, nombres de rama y de archivo, contenido

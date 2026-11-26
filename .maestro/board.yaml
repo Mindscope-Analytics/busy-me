@@ -1,0 +1,42 @@
+# Flujo del tablero con Maestro (se corre cuando haya APK: Fase 1b). Requiere sesión iniciada
+# previamente en el dispositivo y al menos un área ("Personal"). Sin datos reales.
+# Ejecuta: APP_ID=com.mindscopeanalytics.busyme maestro test .maestro/board.yaml
+appId: ${APP_ID}
+---
+- launchApp
+- assertVisible:
+    id: "home"
+# Crear tarea sin iniciar
+- tapOn:
+    id: "new-task"
+- tapOn:
+    id: "title"
+- inputText: "Tarea de ejemplo"
+- tapOn:
+    id: "area-Personal"
+- tapOn:
+    id: "start-now"
+- tapOn:
+    id: "save-task"
+- assertVisible: "Tarea de ejemplo"
+# Activar → aparece en Activas con cronómetro
+- tapOn:
+    id: "activate"
+- assertVisible:
+    id: "pause"
+- assertVisible:
+    id: "clock"
+# Pausar → pasa a Pendientes
+- tapOn:
+    id: "pause"
+- assertVisible:
+    id: "activate"
+# Finalizar → Completadas
+- tapOn:
+    id: "complete"
+- tapOn: "Completadas"
+- assertVisible:
+    id: "done-screen"
+- assertVisible: "Tarea de ejemplo"
+- tapOn:
+    id: "reopen"

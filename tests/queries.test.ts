@@ -127,3 +127,59 @@ describe('errorMessage', () => {
     if (!zod.success) expect(q.errorMessage(zod.error)).toBe('Escribe un título.');
   });
 });
+
+describe('detalle: tramos y edición de tarea', () => {
+  const ENTRY = '33333333-3333-4333-8333-333333333333';
+  it('manualEntrySchema exige ISO con zona y fin > inicio', () => {
+    const ok = { task_id: TASK, started_at: '2026-01-10T16:00:00.000Z', ended_at: '2026-01-10T17:00:00.000Z', note: null };
+    expect(q.manualEntrySchema.safeParse(ok).success).toBe(true);
+    expect(q.manualEntrySchema.safeParse({ ...ok, ended_at: ok.started_at }).success).toBe(false);
+    expect(q.manualEntrySchema.safeParse({ ...ok, started_at: '2026-01-10 16:00' }).success).toBe(false);
+    const r = q.entryPatchSchema.safeParse({ started_at: ok.ended_at, ended_at: ok.started_at, note: null });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(q.errorMessage(r.error)).toBe('El fin debe ser posterior al inicio.');
+  });
+  it('updateTask envía solo el patch validado y filtra por id', async () => {
+    mock.push({ data: null });
+    await q.updateTask(TASK, { title: '  Nuevo  ', due_date: null, status: 'done' } as unknown as q.TaskPatch);
+    const call = mock.calls[0];
+    expect(call.table).toBe('tasks');
+    expect(call.chain[0]).toEqual({ method: 'update', args: [{ title: 'Nuevo', due_date: null }] });
+    expect(call.chain[1]).toEqual({ method: 'eq', args: ['id', TASK] });
+  });
+  it('insertManualEntry siempre inserta un tramo cerrado', async () => {
+    mock.push({ data: null });
+    await q.insertManualEntry({ task_id: TASK, started_at: '2026-01-10T16:00:00.000Z', ended_at: '2026-01-10T16:30:00.000Z', note: ' nota ' });
+    const row = mock.calls[0].chain[0].args[0] as { ended_at: string; note: string };
+    expect(row.ended_at).toBe('2026-01-10T16:30:00.000Z');
+    expect(row.note).toBe('nota');
+  });
+  it('cutTimerAt: pausa por RPC y recorta el tramo recién cerrado solo si el corte cae dentro', async () => {
+    const started = '2026-01-10T10:00:00.000Z';
+    mock.push({ data: 1 }); // pause_task
+    // Un tramo manual con inicio posterior pero fin anterior no debe ser el elegido.
+    mock.push({
+      data: [
+        { id: '44444444-4444-4444-8444-444444444444', task_id: TASK, started_at: '2026-01-10T12:00:00.000Z', ended_at: '2026-01-10T12:30:00.000Z', duration_seconds: 1800, note: null },
+        { id: ENTRY, task_id: TASK, started_at: started, ended_at: '2026-01-10T15:00:00.000Z', duration_seconds: 18000, note: null },
+      ],
+    });
+    mock.push({ data: null }); // update
+    await q.cutTimerAt(TASK, new Date('2026-01-10T14:00:00.000Z'));
+    expect(mock.calls[0]).toMatchObject({ rpc: 'pause_task', args: { p_task_id: TASK } });
+    expect(mock.calls[1].table).toBe('time_entries');
+    expect(mock.calls[2].chain[0]).toEqual({ method: 'update', args: [{ started_at: started, ended_at: '2026-01-10T14:00:00.000Z', note: null }] });
+    expect(mock.calls[2].chain[1]).toEqual({ method: 'eq', args: ['id', ENTRY] });
+  });
+  it('cutTimerAt no recorta si el corte queda fuera del tramo', async () => {
+    mock.push({ data: 1 });
+    mock.push({ data: [{ id: ENTRY, task_id: TASK, started_at: '2026-01-10T10:00:00.000Z', ended_at: '2026-01-10T11:00:00.000Z', duration_seconds: 3600, note: null }] });
+    await q.cutTimerAt(TASK, new Date('2026-01-10T14:00:00.000Z'));
+    expect(mock.calls).toHaveLength(2);
+  });
+  it('deleteTimeEntry / deleteArea rechazan ids inválidos sin tocar la base', async () => {
+    await expect(q.deleteTimeEntry('x')).rejects.toBeTruthy();
+    await expect(q.deleteArea('x')).rejects.toBeTruthy();
+    expect(mock.calls).toHaveLength(0);
+  });
+});

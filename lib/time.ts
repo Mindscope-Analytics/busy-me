@@ -96,3 +96,44 @@ export function secondsSince(iso: string | null, now: Date): number {
   if (!iso) return 0;
   return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 1000));
 }
+
+/** 'YYYY-MM-DD HH:mm' del instante dado en America/Mexico_City (para editar tramos). */
+export function formatBusinessDateTime(at: Date): string {
+  return `${toBusinessDate(at)} ${formatBusinessTime(at)}`;
+}
+
+/** Desfase (minutos) de America/Mexico_City respecto a UTC para un instante dado. */
+function businessOffsetMinutes(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TZ,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(at);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  return Math.round((asUtc - at.getTime()) / 60_000);
+}
+
+/**
+ * 'YYYY-MM-DD HH:mm' interpretado en America/Mexico_City → Date. null si el formato no es válido.
+ * Resuelve el desfase con Intl (no asume UTC-6 fijo).
+ */
+export function parseBusinessDateTime(input: string): Date | null {
+  const m = input.trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{1,2}):(\d{2})$/);
+  if (!m || !isValidYmd(m[1])) return null;
+  const [y, mo, d] = m[1].split('-').map(Number);
+  const h = Number(m[2]);
+  const mi = Number(m[3]);
+  if (h > 23 || mi > 59) return null;
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  const offset = businessOffsetMinutes(new Date(guess));
+  const utc = guess - offset * 60_000;
+  // Segundo paso por si el desfase cambia justo en ese instante (DST histórico).
+  const offset2 = businessOffsetMinutes(new Date(utc));
+  return new Date(guess - offset2 * 60_000);
+}
