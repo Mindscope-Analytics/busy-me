@@ -2,15 +2,23 @@
 # pre-push — compuerta local (activada por scripts/setup-hooks.sh).
 #  1. Bloquea cualquier push cuyo destino sea main o master.
 #  2. gitleaks sobre los commits que se van a empujar.
+#  0. (Busy Me, repo público) el nombre de la rama no contiene términos privados.
 # Git pasa por stdin líneas: <local ref> <local sha> <remote ref> <remote sha>
 set -u
 red()  { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 info() { printf '\033[36m%s\033[0m\n' "$*" >&2; }
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=.githooks/private-terms.sh
+. "$HOOKS_DIR/private-terms.sh"
+pt_load_terms || exit 1
 zero="0000000000000000000000000000000000000000"
 remote_name="${1:-origin}"
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ -z "${remote_ref:-}" ] && continue
+  # Nombres de rama (local y remoto) con separadores convertidos a espacios para que -w funcione.
+  printf '%s\n%s\n' "${local_ref#refs/heads/}" "${remote_ref#refs/heads/}" | tr '/_.-' '    ' \
+    | pt_check "El nombre de la rama" || exit 1
   case "$remote_ref" in
     refs/heads/main|refs/heads/master)
       red "pre-push: BLOQUEADO. No se empuja a '${remote_ref#refs/heads/}'. Abre una rama y un PR."

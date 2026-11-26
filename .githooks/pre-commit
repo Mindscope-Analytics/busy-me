@@ -3,6 +3,7 @@
 #  1. gitleaks protect --staged: ningún secreto en lo que se va a commitear.
 #  2. actionlint si cambian workflows.
 #  3. semgrep (reglas p/default del registry, sin métricas) sobre los archivos staged, con timeout.
+#  0. (Busy Me, repo público) términos privados: ni en nombres de archivo ni en contenido staged.
 set -u
 red()  { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 info() { printf '\033[36m%s\033[0m\n' "$*" >&2; }
@@ -10,6 +11,21 @@ need() { command -v "$1" >/dev/null 2>&1 || { red "pre-commit: falta '$1'. $2"; 
 
 staged="$(git diff --cached --name-only --diff-filter=ACMR)"
 [ -z "$staged" ] && exit 0
+
+# 0. términos privados (ver .githooks/private-terms.sh) ------------------------------
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=.githooks/private-terms.sh
+. "$HOOKS_DIR/private-terms.sh"
+pt_load_terms || exit 1
+info "pre-commit: términos privados (nombres de archivo + contenido staged)"
+printf '%s\n' "$staged" | pt_check "Un nombre de archivo staged" || exit 1
+# Contenido: solo archivos de texto (numstat marca los binarios con "-"). -z evita rutas
+# entrecomilladas y --no-renames evita "dir/{a => b}" (hallazgo de claude-review en el PR 3).
+while IFS=$'\t' read -r -d '' added deleted path; do
+  [ -z "${path:-}" ] && continue
+  [ "$added" = "-" ] && continue
+  git show ":$path" | pt_check "El contenido staged de $path" || exit 1
+done < <(git diff --cached --numstat -z --no-renames --diff-filter=ACMR)
 
 # 1. gitleaks ---------------------------------------------------------------------
 need gitleaks "Instala desde https://github.com/gitleaks/gitleaks/releases (binario en ~/.local/bin)."

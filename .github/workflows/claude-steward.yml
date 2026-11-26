@@ -65,6 +65,10 @@ jobs:
         && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # Busy Me: el runner no tiene la lista privada de términos; sin esto los hooks (fail-closed)
+      # rechazarían el git commit del steward (claude-review PR 3).
+      BUSYME_ALLOW_NO_TERMS: "1"
     permissions:
       contents: write        # solo lo usa el paso "Push" del workflow; el agente no recibe credenciales
       pull-requests: write
