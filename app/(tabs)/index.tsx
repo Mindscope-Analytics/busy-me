@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AreaChips } from '@/components/AreaChips';
@@ -123,9 +123,13 @@ export default function NowScreen() {
 function FirstUse() {
   const { act } = useBoard();
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   async function create() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     await act(() => q.createDefaultAreas());
+    inFlight.current = false;
     setBusy(false);
   }
   return (
