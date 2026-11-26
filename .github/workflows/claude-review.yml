@@ -30,6 +30,10 @@ jobs:
         && contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Busy Me: el runner no tiene la lista privada de términos; sin esto los hooks (fail-closed)
+      # rechazarían todo git commit / gh pr comment de Claude en CI (claude-review PR 3).
+      BUSYME_ALLOW_NO_TERMS: "1"
     permissions:
       contents: read
       pull-requests: write

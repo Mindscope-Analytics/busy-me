@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Button, Chip, colors } from '@/components/ui';
 import { useBoard } from '@/hooks/useBoard';
@@ -39,7 +39,11 @@ export default function NewTaskScreen() {
     setWorkTypeId(null);
   }
 
+  // Guarda contra reentrada: Enter dos veces antes de que `busy` se pinte lanzaría dos inserts.
+  const inFlight = useRef(false);
   async function run<T>(fn: () => Promise<T>): Promise<T | undefined> {
+    if (inFlight.current) return undefined;
+    inFlight.current = true;
     setBusy(true);
     setError('');
     try {
@@ -50,6 +54,7 @@ export default function NewTaskScreen() {
       setError(q.errorMessage(e));
       return undefined;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }

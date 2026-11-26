@@ -86,8 +86,11 @@ export function BoardProvider({ children }: { children: ReactNode }) {
         await refresh();
         return true;
       } catch (e) {
-        setError(q.errorMessage(e));
+        // Primero el refetch (que limpia el error de carga) y después el error de la acción,
+        // para que no se pierda (claude-review PR 5).
+        const message = q.errorMessage(e);
         await refresh();
+        setError(message);
         return false;
       }
     },

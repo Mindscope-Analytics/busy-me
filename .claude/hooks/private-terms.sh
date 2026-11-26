@@ -18,12 +18,15 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 # shellcheck source=.githooks/private-terms.sh
 . "$ROOT/.githooks/private-terms.sh"
 
+# Detección laxa a propósito (claude-review PR 3): no se ancla al subcomando exacto, porque las
+# opciones globales (`gh --repo o/r pr create`, `git -C dir commit`, `git -c k=v push`) lo evadían.
+# Un falso positivo solo obliga a reescribir el texto; un falso negativo publica un término.
 B='(^|[^A-Za-z0-9_./-])'
 publishes=0
-printf '%s' "$cmd" | grep -qE "${B}gh +(-R +[^ ]+ +)?(pr|issue) +(create|edit|comment)( |$)" && publishes=1
-printf '%s' "$cmd" | grep -qE "${B}git +(-[^ ]+ +)*commit( |$)" && publishes=1
-printf '%s' "$cmd" | grep -qE "${B}git +(-[^ ]+ +)*(checkout +-b|switch +-c|branch +[^-])" && publishes=1
-printf '%s' "$cmd" | grep -qE "${B}git +(-[^ ]+ +)*push( |$)" && publishes=1
+# gh … pr|issue … create|edit|comment, con cualquier cosa (opciones globales, -R) en medio.
+printf '%s' "$cmd" | grep -qE "${B}gh +([^ ]+ +)*(pr|issue) +([^ ]+ +)*(create|edit|comment)( |$)" && publishes=1
+# git … commit|push|switch|checkout|branch, con opciones globales y sus argumentos en medio.
+printf '%s' "$cmd" | grep -qE "${B}git +([^ ]+ +)*(commit|push|switch|checkout|branch)( |$)" && publishes=1
 [ "$publishes" = 1 ] || exit 0
 
 pt_load_terms || exit 2
