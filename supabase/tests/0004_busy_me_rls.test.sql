@@ -1,6 +1,6 @@
 -- Busy Me: RLS con dos usuarios en las 6 tablas; B no lee, no escribe ni cuelga filas de A.
 begin;
-select plan(22);
+select plan(25);
 
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at) values
   ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'authenticated', 'authenticated', 'user_a@example.com', now(), now()),
@@ -80,6 +80,19 @@ select lives_ok(
   $$ insert into public.tasks (area_id, title) values ('b0000000-0000-0000-0000-000000000001', 'Tarea B') $$,
   'B sí crea tareas en su propia área');
 reset role;
+
+-- Realtime: sin DELETE en la publicación (no se filtra por RLS) y replica identity default ----
+select is(
+  (select pubdelete from pg_publication where pubname = 'supabase_realtime'),
+  false, 'la publicación supabase_realtime no emite DELETE');
+select is(
+  (select pubinsert and pubupdate from pg_publication where pubname = 'supabase_realtime'),
+  true, 'la publicación supabase_realtime emite INSERT y UPDATE');
+select is(
+  (select string_agg(c.relname || ':' || c.relreplident::text, ',' order by c.relname)
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname in ('tasks', 'time_entries')),
+  'tasks:d,time_entries:d', 'tasks y time_entries conservan replica identity default (solo la PK viaja en los eventos)');
 
 select * from finish();
 rollback;

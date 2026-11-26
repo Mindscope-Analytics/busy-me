@@ -4,6 +4,9 @@
 -- time_entries abiertos (ended_at null): lo imponen dos triggers que solo dejan pasar cuando
 -- la transacción corre dentro de una RPC (set_config('busy_me.via_rpc') transaccional).
 -- Las RPC son SECURITY INVOKER: la RLS del usuario sigue aplicando dentro de ellas.
+-- Supuesto de la guarda: un cliente PostgREST no puede fijar GUCs arbitrarios (solo request.*);
+-- si algún día se expone una RPC genérica o un pre-request que haga set_config con input del
+-- cliente, la guarda deja de valer. No lo hagas.
 -- Idempotente.
 -- ============================================================================
 
@@ -78,10 +81,16 @@ create trigger trg_time_entries_guard_open
   for each row execute function public.time_entries_guard_open();
 
 -- ----------------------------------------------------------------------------
--- Helpers internos de las RPC
+-- Helpers internos de las RPC: viven en el esquema `private`, que PostgREST NO expone
+-- (api.schemas = public, graphql_public), así que no son llamables desde el cliente aunque
+-- authenticated tenga execute (las RPC públicas son SECURITY INVOKER y necesitan ese grant).
 -- ----------------------------------------------------------------------------
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated, service_role;
+
 -- Bloquea la tarea del usuario (RLS aplica: si no es suya, "not found").
-create or replace function public.lock_own_task(p_task_id uuid)
+create or replace function private.lock_own_task(p_task_id uuid)
 returns public.tasks
 language plpgsql
 set search_path = public, pg_temp
@@ -96,12 +105,12 @@ begin
   return t;
 end;
 $$;
-revoke all on function public.lock_own_task(uuid) from public;
-grant execute on function public.lock_own_task(uuid) to authenticated, service_role;
+revoke all on function private.lock_own_task(uuid) from public, anon;
+grant execute on function private.lock_own_task(uuid) to authenticated, service_role;
 
 -- Cierra los tramos abiertos de una tarea (o de todas si p_task_id es null). Devuelve cuántos.
 -- ended_at nunca iguala a started_at (check): en la misma transacción now() no avanza.
-create or replace function public.close_open_entries(p_task_id uuid)
+create or replace function private.close_open_entries(p_task_id uuid)
 returns integer
 language plpgsql
 set search_path = public, pg_temp
@@ -117,8 +126,8 @@ begin
   return n;
 end;
 $$;
-revoke all on function public.close_open_entries(uuid) from public;
-grant execute on function public.close_open_entries(uuid) to authenticated, service_role;
+revoke all on function private.close_open_entries(uuid) from public, anon;
+grant execute on function private.close_open_entries(uuid) to authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
 -- RPC públicas (PostgREST: supabase.rpc('activate_task', { p_task_id }))
@@ -135,7 +144,7 @@ declare
   t public.tasks;
 begin
   perform set_config('busy_me.via_rpc', '1', true);
-  t := public.lock_own_task(p_task_id);
+  t := private.lock_own_task(p_task_id);
   if t.status = 'backlog' then
     update public.tasks set status = 'started', started_at = now() where id = t.id returning * into t;
   elsif t.status <> 'started' then
@@ -157,7 +166,7 @@ declare
   t public.tasks;
 begin
   perform set_config('busy_me.via_rpc', '1', true);
-  t := public.lock_own_task(p_task_id);
+  t := private.lock_own_task(p_task_id);
   if t.status in ('done', 'cancelled') then
     raise exception 'task is % and cannot be activated', t.status using errcode = 'P0001';
   end if;
@@ -182,8 +191,8 @@ declare
   n integer;
 begin
   perform set_config('busy_me.via_rpc', '1', true);
-  perform public.lock_own_task(p_task_id);
-  n := public.close_open_entries(p_task_id);
+  perform private.lock_own_task(p_task_id);
+  n := private.close_open_entries(p_task_id);
   perform set_config('busy_me.via_rpc', '', true);
   return n;
 end;
@@ -199,7 +208,7 @@ declare
   n integer;
 begin
   perform set_config('busy_me.via_rpc', '1', true);
-  n := public.close_open_entries(null);
+  n := private.close_open_entries(null);
   perform set_config('busy_me.via_rpc', '', true);
   return n;
 end;
@@ -215,9 +224,9 @@ declare
   t public.tasks;
 begin
   perform set_config('busy_me.via_rpc', '1', true);
-  t := public.lock_own_task(p_task_id);
+  t := private.lock_own_task(p_task_id);
   if t.status <> 'done' then
-    perform public.close_open_entries(t.id);
+    perform private.close_open_entries(t.id);
     update public.tasks set status = 'done', completed_at = now() where id = t.id returning * into t;
   end if;
   perform set_config('busy_me.via_rpc', '', true);
@@ -235,7 +244,7 @@ declare
   t public.tasks;
 begin
   perform set_config('busy_me.via_rpc', '1', true);
-  t := public.lock_own_task(p_task_id);
+  t := private.lock_own_task(p_task_id);
   if t.status not in ('done', 'cancelled') then
     raise exception 'task is % and cannot be reopened', t.status using errcode = 'P0001';
   end if;

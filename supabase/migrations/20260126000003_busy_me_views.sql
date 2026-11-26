@@ -96,11 +96,17 @@ revoke all on public.v_time_allocated, public.v_tasks_board from public, anon;
 grant select on public.v_time_allocated, public.v_tasks_board to authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
--- Realtime: el cliente escucha cambios en tasks y time_entries (RLS aplica a los eventos).
+-- Realtime: el cliente escucha cambios en tasks y time_entries.
+-- Supabase Realtime (Postgres Changes) filtra por RLS los INSERT/UPDATE, pero NO los DELETE
+-- (no hay fila contra la que evaluar la policy): un DELETE llegaría a todos los suscriptores
+-- con la PK de la fila ajena. Por eso la publicación solo emite insert y update, y las tablas
+-- se quedan con replica identity default (el test 0004 lo fija). Un borrado hecho desde otro
+-- dispositivo se refleja en el siguiente refetch, no en vivo.
 -- ----------------------------------------------------------------------------
 do $$
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    alter publication supabase_realtime set (publish = 'insert, update');
     if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'tasks') then
       alter publication supabase_realtime add table public.tasks;
     end if;
