@@ -156,8 +156,8 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<void
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  const id = uuid.parse(taskId);
-  unwrap(await supabase.from('tasks').delete().eq('id', id));
+  const safeId = uuid.parse(taskId);
+  unwrap(await supabase.from('tasks').delete().eq('id', safeId));
 }
 
 export async function fetchTimeEntries(taskId: string): Promise<TimeEntry[]> {
@@ -206,8 +206,8 @@ export async function updateTimeEntry(entryId: string, patch: z.input<typeof ent
 }
 
 export async function deleteTimeEntry(entryId: string): Promise<void> {
-  const id = uuid.parse(entryId);
-  unwrap(await supabase.from('time_entries').delete().eq('id', id));
+  const safeId = uuid.parse(entryId);
+  unwrap(await supabase.from('time_entries').delete().eq('id', safeId));
 }
 
 /**
@@ -231,20 +231,20 @@ export async function updateArea(areaId: string, patch: Partial<NewArea>): Promi
   unwrap(await supabase.from('areas').update(row).eq('id', uuid.parse(areaId)));
 }
 export async function deleteArea(areaId: string): Promise<void> {
-  const id = uuid.parse(areaId);
-  unwrap(await supabase.from('areas').delete().eq('id', id));
+  const safeId = uuid.parse(areaId);
+  unwrap(await supabase.from('areas').delete().eq('id', safeId));
 }
 export async function renameRequester(id: string, newName: string): Promise<void> {
   unwrap(await supabase.from('requesters').update({ name: name.parse(newName) }).eq('id', uuid.parse(id)));
 }
 export async function deleteRequester(id: string): Promise<void> {
-  const id = uuid.parse(id);
-  unwrap(await supabase.from('requesters').delete().eq('id', id));
+  const safeId = uuid.parse(id);
+  unwrap(await supabase.from('requesters').delete().eq('id', safeId));
 }
 export async function renameWorkType(id: string, newName: string): Promise<void> {
   unwrap(await supabase.from('work_types').update({ name: name.parse(newName) }).eq('id', uuid.parse(id)));
 }
 export async function deleteWorkType(id: string): Promise<void> {
-  const id = uuid.parse(id);
-  unwrap(await supabase.from('work_types').delete().eq('id', id));
+  const safeId = uuid.parse(id);
+  unwrap(await supabase.from('work_types').delete().eq('id', safeId));
 }
