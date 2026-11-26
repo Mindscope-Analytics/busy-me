@@ -76,3 +76,6 @@ Thumbs.db
 # ─── Claude Code: ajustes locales de cada máquina ────────────────────────────
 .claude/settings.local.json
 .playwright-mcp/
+
+# ─── preset expo-supabase ───
+expo-env.d.ts

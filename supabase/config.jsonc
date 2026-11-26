@@ -3,7 +3,7 @@
   // Configuración local del Supabase CLI (3.x). Fuente de verdad del esquema:
   // supabase/migrations. Tests pgTAP: supabase/tests. Plantillas de Auth: supabase/templates.
   // `project_id` distingue proyectos locales en la misma máquina; cámbialo al aplicar el preset.
-  "project_id": "project",
+  "project_id": "busy_me",
 
   "api": {
     "enabled": true,
