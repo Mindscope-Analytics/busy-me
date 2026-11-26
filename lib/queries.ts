@@ -81,11 +81,25 @@ export async function pauseAll() {
 }
 
 // ── Altas ────────────────────────────────────────────────────────────────────────────────
-export async function createTask(input: NewTask, startNow: boolean): Promise<string> {
+export interface CreatedTask {
+  id: string;
+  /** Mensaje si la tarea se creó pero no se pudo iniciar (queda en "Por iniciar"). */
+  startError?: string;
+}
+/**
+ * Inserta la tarea y, si se pide, la activa. Si el insert funciona y el activate falla, NO lanza:
+ * la tarea ya existe y un reintento del formulario la duplicaría (hallazgo de claude-review).
+ */
+export async function createTask(input: NewTask, startNow: boolean): Promise<CreatedTask> {
   const row = newTaskSchema.parse(input);
   const created = unwrap(await supabase.from('tasks').insert(row).select('id').single()) as { id: string };
-  if (startNow) await activateTask(created.id);
-  return created.id;
+  if (!startNow) return { id: created.id };
+  try {
+    await activateTask(created.id);
+    return { id: created.id };
+  } catch (e) {
+    return { id: created.id, startError: `La tarea se guardó pero no se pudo iniciar: ${errorMessage(e)}` };
+  }
 }
 
 export async function createArea(input: NewArea): Promise<Area> {
@@ -109,7 +123,10 @@ export const DEFAULT_AREAS: NewArea[] = [
   { name: 'Personal', color: '#16a34a', track_by_type: false },
   { name: 'Estudios', color: '#9333ea', track_by_type: false },
 ];
+/** Idempotente: si ya hay áreas (doble toque, otra pestaña) no inserta nada. */
 export async function createDefaultAreas(): Promise<void> {
+  const existing = unwrap(await supabase.from('areas').select('id').limit(1)) as { id: string }[];
+  if (existing.length > 0) return;
   const rows = DEFAULT_AREAS.map((a, i) => ({ ...newAreaSchema.parse(a), sort_order: i }));
   unwrap(await supabase.from('areas').insert(rows));
 }
