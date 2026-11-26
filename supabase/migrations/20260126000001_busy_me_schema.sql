@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0004 — Busy Me: esquema (areas, requesters, work_types, projects, tasks, time_entries)
+-- 20260126000001 — Busy Me: esquema (areas, requesters, work_types, projects, tasks, time_entries)
 -- Reglas: toda tabla con RLS por user_id = auth.uid(); user_id lo pone un trigger; grants
 -- explícitos (auto_expose_new_tables = false); updated_at por set_updated_at().
 -- Zona horaria de negocio: America/Mexico_City (se aplica en vistas y RPC, no aquí).
@@ -25,6 +25,7 @@ begin
   return new;
 end;
 $$;
+revoke all on function public.set_user_id() from public, anon;
 comment on function public.set_user_id() is
   'Trigger BEFORE INSERT: user_id = auth.uid() (o el dado si no hay sesión: tests/seeds). Sin SECURITY DEFINER.';
 

@@ -1,6 +1,6 @@
 -- Busy Me: RLS con dos usuarios en las 6 tablas; B no lee, no escribe ni cuelga filas de A.
 begin;
-select plan(25);
+select plan(26);
 
 insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at) values
   ('00000000-0000-0000-0000-000000000000', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'authenticated', 'authenticated', 'user_a@example.com', now(), now()),
@@ -37,6 +37,7 @@ set local role anon;
 select throws_ok($$ select count(*) from public.tasks $$, '42501', null, 'anon no tiene grant sobre tasks');
 select throws_ok($$ select count(*) from public.v_tasks_board $$, '42501', null, 'anon no tiene grant sobre v_tasks_board');
 select throws_ok($$ select public.pause_all() $$, '42501', null, 'anon no puede ejecutar las RPC');
+select throws_ok($$ select public.via_rpc() $$, '42501', null, 'anon no puede ejecutar via_rpc()');
 reset role;
 
 -- B: no ve nada de A -----------------------------------------------------------------------

@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0005 — Busy Me: guardas + RPC de estado y cronómetros
+-- 20260126000002 — Busy Me: guardas + RPC de estado y cronómetros
 -- El cliente NUNCA hace update directo de tasks.status/started_at/completed_at ni toca
 -- time_entries abiertos (ended_at null): lo imponen dos triggers que solo dejan pasar cuando
 -- la transacción corre dentro de una RPC (set_config('busy_me.via_rpc') transaccional).
@@ -18,7 +18,8 @@ set search_path = public, pg_temp
 as $$
   select coalesce(current_setting('busy_me.via_rpc', true), '') = '1';
 $$;
-revoke all on function public.via_rpc() from public;
+-- Supabase da execute a anon por default privileges: se revoca explícitamente (claude-review PR 4).
+revoke all on function public.via_rpc() from public, anon;
 -- Solo la usan los triggers (corren con el rol de quien escribe) y las RPC.
 grant execute on function public.via_rpc() to authenticated, service_role;
 
@@ -48,6 +49,7 @@ begin
   return new;
 end;
 $$;
+revoke all on function public.tasks_guard_status() from public, anon;
 drop trigger if exists trg_tasks_guard_status on public.tasks;
 create trigger trg_tasks_guard_status
   before insert or update on public.tasks
@@ -75,6 +77,7 @@ begin
   return new;
 end;
 $$;
+revoke all on function public.time_entries_guard_open() from public, anon;
 drop trigger if exists trg_time_entries_guard_open on public.time_entries;
 create trigger trg_time_entries_guard_open
   before insert or update on public.time_entries
@@ -233,6 +236,9 @@ begin
   return t;
 end;
 $$;
+
+-- Nota: el estado 'cancelled' existe en el enum pero ninguna RPC lo asigna todavía (no hay
+-- flujo de cancelar en la Fase 1a); cuando haga falta, cancel_task sigue el mismo patrón.
 
 -- reopen_task: done (o cancelled) → started, completed_at = null.
 create or replace function public.reopen_task(p_task_id uuid)

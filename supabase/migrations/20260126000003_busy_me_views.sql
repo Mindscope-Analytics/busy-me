@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0006 — Busy Me: vistas de tablero y reparto de tiempo + Realtime
+-- 20260126000003 — Busy Me: vistas de tablero y reparto de tiempo + Realtime
 -- Zona horaria de negocio: America/Mexico_City.
 -- Ambas vistas son security_invoker: la RLS del usuario aplica a las tablas base.
 -- Idempotente.
