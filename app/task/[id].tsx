@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button, Chip, Empty, SectionHeader, colors } from '@/components/ui';
 import { useBoard } from '@/hooks/useBoard';
@@ -39,11 +39,12 @@ export default function TaskDetailScreen() {
     void loadEntries();
   }, [loadEntries, tasks]);
 
+  // Tras una acción basta con refresh(): el efecto de arriba recarga los tramos al cambiar `tasks`.
   async function run(fn: () => Promise<unknown>) {
     setError('');
     try {
       await fn();
-      await Promise.all([refresh(), loadEntries()]);
+      await refresh();
       return true;
     } catch (err) {
       setError(q.errorMessage(err));
@@ -175,7 +176,16 @@ export default function TaskDetailScreen() {
 function Field({ label, value, onSave, multiline, testID }: { label: string; value: string; onSave: (v: string) => Promise<boolean>; multiline?: boolean; testID?: string }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
-  const dirty = draft !== value;
+  // Enter dispara onSubmitEditing y luego onBlur en el mismo render: se guarda una sola vez.
+  const lastSaved = useRef(value);
+  useEffect(() => {
+    lastSaved.current = value;
+  }, [value]);
+  function save() {
+    if (draft === lastSaved.current) return;
+    lastSaved.current = draft;
+    void onSave(draft);
+  }
   return (
     <View>
       <Text style={styles.label}>{label}</Text>
@@ -184,8 +194,8 @@ function Field({ label, value, onSave, multiline, testID }: { label: string; val
         value={draft}
         onChangeText={setDraft}
         multiline={multiline}
-        onBlur={() => dirty && void onSave(draft)}
-        onSubmitEditing={() => dirty && void onSave(draft)}
+        onBlur={save}
+        onSubmitEditing={save}
         blurOnSubmit={!multiline}
         testID={testID}
       />

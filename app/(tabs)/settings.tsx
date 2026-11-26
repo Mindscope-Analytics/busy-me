@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Chip, Empty, SectionHeader, colors } from '@/components/ui';
@@ -63,6 +63,12 @@ export default function SettingsScreen() {
 function AreaEditor({ area }: { area: Area }) {
   const { catalogs, act } = useBoard();
   const [name, setName] = useState(area.name);
+  const lastSaved = useRef(area.name);
+  function saveName() {
+    if (name === lastSaved.current) return; // Enter + blur en el mismo render → un solo update
+    lastSaved.current = name;
+    void act(() => q.updateArea(area.id, { name }));
+  }
   const requesters = catalogs.requesters.filter((r) => r.area_id === area.id);
   const workTypes = catalogs.workTypes.filter((w) => w.area_id === area.id);
 
@@ -80,8 +86,8 @@ function AreaEditor({ area }: { area: Area }) {
         value={name}
         onChangeText={setName}
         maxLength={60}
-        onBlur={() => name !== area.name && void act(() => q.updateArea(area.id, { name }))}
-        onSubmitEditing={() => name !== area.name && void act(() => q.updateArea(area.id, { name }))}
+        onBlur={saveName}
+        onSubmitEditing={saveName}
         testID="area-name"
       />
       <Text style={styles.label}>Color</Text>
