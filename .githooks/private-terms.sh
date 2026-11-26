@@ -23,7 +23,9 @@ pt_red()  { printf '\033[31m%s\033[0m\n' "$*" >&2; }
 
 # Normaliza stdin: sin acentos (translit a ASCII), en minúsculas y con espacios repetidos colapsados.
 pt_normalize() {
-  LC_ALL=C.UTF-8 iconv -f utf-8 -t ascii//TRANSLIT 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -s ' \t' ' '
+  # -c: descarta bytes que no son UTF-8 válido y SIGUE (sin -c iconv se detiene ahí y el
+  # resto del texto quedaría sin comparar; hallazgo de claude-review en el PR 3).
+  LC_ALL=C.UTF-8 iconv -c -f utf-8 -t ascii//TRANSLIT 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -s ' \t' ' '
 }
 
 # Devuelve 0 si la lista está disponible (o si se permite seguir sin ella), 1 si hay que
