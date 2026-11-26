@@ -39,9 +39,9 @@ deny() { echo "private-terms: BLOQUEADO — $1 contiene un término privado. Ree
 printf '%s\n' "$cmd" | tr '/_.-' '    ' | pt_text_has_term && deny "el comando"
 printf '%s\n' "$cmd" | pt_text_has_term && deny "el comando"
 
-# 2. Archivos referenciados (-F x, --body-file x, --file x, -F=x, --body-file=x).
-files="$(printf '%s\n' "$cmd" | grep -oE '(^| )(-F|--body-file|--file|--title-file|-t|--title|-b|--body)[ =]+("[^"]+"|'"'"'[^'"'"']+'"'"'|[^ ]+)' \
-  | sed -E 's/^ ?(-F|--body-file|--file|--title-file|-t|--title|-b|--body)[ =]+//; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/')"
+# 2. Archivos referenciados (-F x, --body-file x, --file x, --input x, --notes-file x, -F=x…).
+files="$(printf '%s\n' "$cmd" | grep -oE '(^| )(-F|--body-file|--file|--title-file|--input|--notes-file|-t|--title|-b|--body)[ =]+("[^"]+"|'"'"'[^'"'"']+'"'"'|[^ ]+)' \
+  | sed -E 's/^ ?(-F|--body-file|--file|--title-file|--input|--notes-file|-t|--title|-b|--body)[ =]+//; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/')"
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   case "$f" in /*) path="$f" ;; *) path="${cwd:-$PWD}/$f" ;; esac
