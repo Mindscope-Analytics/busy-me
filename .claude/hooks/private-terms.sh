@@ -2,8 +2,8 @@
 # private-terms.sh — Hook PreToolUse (matcher "Bash") de Claude Code para Busy Me (repo público).
 # Bloquea (exit 2) los comandos que publican texto en GitHub cuando ese texto contiene un
 # término de la lista privada (~/.config/busy-me/private-terms.txt):
-#   gh pr create|edit|comment · gh issue create|edit|comment · git commit · git checkout -b ·
-#   git switch -c · git branch <nombre> · git push (nombre de rama en el comando).
+#   gh pr|issue|release|gist|repo create|edit|comment|review · gh api con cuerpo o POST/PATCH/PUT ·
+#   git commit · git checkout -b · git switch -c · git branch <nombre> · git push.
 # Revisa el texto del comando y el contenido de los archivos pasados con -F/--body-file/
 # --file/--title-file (que es como se escriben los cuerpos largos). Nunca imprime el término.
 # Comparte la normalización y la lista con .githooks/private-terms.sh.
@@ -23,8 +23,10 @@ ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 # Un falso positivo solo obliga a reescribir el texto; un falso negativo publica un término.
 B='(^|[^A-Za-z0-9_./-])'
 publishes=0
-# gh … pr|issue … create|edit|comment, con cualquier cosa (opciones globales, -R) en medio.
-printf '%s' "$cmd" | grep -qE "${B}gh +([^ ]+ +)*(pr|issue) +([^ ]+ +)*(create|edit|comment)( |$)" && publishes=1
+# gh … pr|issue|release|gist|repo … create|edit|comment|review, con cualquier cosa en medio;
+# y gh api con cuerpo (-f/-F/--field/--raw-field/--input) o método de escritura.
+printf '%s' "$cmd" | grep -qE "${B}gh +([^ ]+ +)*(pr|issue|release|gist|repo) +([^ ]+ +)*(create|edit|comment|review)( |$)" && publishes=1
+printf '%s' "$cmd" | grep -qE "${B}gh +([^ ]+ +)*api( |$)" && printf '%s' "$cmd" | grep -qE "(^| )(-f|-F|--field|--raw-field|--input)[ =]|(^| )(-X|--method)[ =]*(POST|PATCH|PUT)( |$)" && publishes=1
 # git … commit|push|switch|checkout|branch, con opciones globales y sus argumentos en medio.
 printf '%s' "$cmd" | grep -qE "${B}git +([^ ]+ +)*(commit|push|switch|checkout|branch)( |$)" && publishes=1
 [ "$publishes" = 1 ] || exit 0
