@@ -1,151 +1,84 @@
-# CLAUDE.md — Mindscope Analytics Software Factory
+# CLAUDE.md — Busy Me
 
-Este archivo gobierna a Claude Code en este repo y en todo repo creado desde esta plantilla.
-Las reglas globales (idioma, flujo de trabajo, handoff) viven en `global/CLAUDE.md` y se
-instalan en `~/.claude/CLAUDE.md` con `scripts/install-global.sh`. Aquí van las reglas del
-proyecto y, sobre todo, las **reglas verificables**: cada una trae el comando que la comprueba.
+Este archivo gobierna a Claude Code en este repo. Las reglas globales de Mindscope Analytics
+(idioma, flujo rama + PR, handoff) están en `~/.claude/CLAUDE.md`; estas las complementan y
+nunca las relajan.
 
 ## Qué es este repo
 
-Plantilla pública (template repository) con tres capas:
-1. Gobernanza para Claude Code: `.claude/` (permisos, hooks, agentes, comandos) y `global/`.
-2. Compuertas: `.githooks/` (pre-commit, pre-push) y `.github/workflows/` (ci, risk-gate,
-   security, claude-review, claude-steward).
-3. Presets y módulos: `presets/expo-supabase/` y `modules/supabase-base/`, aplicados con
-   `scripts/apply-preset.sh`. Un proyecto nuevo nace con `scripts/new-project.sh`.
+Tablero personal de tareas con cronómetros en paralelo. Expo (web + Android) + Supabase.
+**Repo público.** Fases: 1a local (migraciones, tablero, detalle, ajustes); 1b despliegue
+(Supabase cloud, Cloudflare Pages, APK, notificaciones Android).
 
-Políticas en `.factory/`: `risk-policy.yml`, `review-guidelines.md`, `definition-of-done.md`.
+## Regla de privacidad (la más importante aquí)
 
-## Comandos que debes conocer
+Todo texto que llega a GitHub usa **descripciones genéricas** (área, solicitante, tarea),
+nunca nombres reales de empresas, clientes, personas o proyectos del dueño. Aplica a mensajes
+de commit, nombres de rama y de archivo, títulos y cuerpos de PR e issues, comentarios, README
+y handoffs citados. **Las descripciones de PR se escriben a partir del diff, no del contexto
+de la conversación.**
+
+- La lista de términos vive fuera del repo (`~/.config/busy-me/private-terms.txt`). No la
+  leas, no la cites, no la copies. Los hooks la consultan por ti.
+- Si un hook rechaza "contiene un término privado", reescribe el texto con descripciones
+  genéricas; no intentes averiguar cuál fue el término.
+- Datos reales solo en la base de datos. Seeds, fixtures, tests, capturas y docs usan datos
+  ficticios genéricos ("Área A", "Solicitante 1", "Tarea de ejemplo").
 
 ```bash
-pnpm install            # también activa los hooks (prepare → scripts/setup-hooks.sh)
-pnpm lint && pnpm typecheck && pnpm test
-pnpm test:guard         # casos del hook guard-bash.sh
-pnpm lint:workflows     # actionlint sobre .github/workflows
-pnpm check:rls          # toda tabla en migraciones tiene RLS
-supabase start && supabase test db   # pgTAP (requiere Docker)
+# Esperado: pass=N fail=0 (hooks con lista ficticia)
+bash scripts/test-private-terms.sh
+```
+
+## Comandos
+
+```bash
+pnpm install && supabase start && supabase db reset
+pnpm lint && pnpm typecheck && pnpm test     # jest + guard + privacy
+supabase test db                             # pgTAP
+pnpm export:web && pnpm e2e:web              # Playwright
 ```
 
 Comandos de Claude Code: `/plan-phase`, `/ship-pr`, `/audit`, `/handoff`.
 Agentes: `planner`, `db-guardian`, `test-engineer`, `security-auditor`, `independent-reviewer`.
 
-## Reglas verificables (8 puntos)
+## Reglas del dominio
 
-Generalizadas desde la disciplina probada en los proyectos previos. Cada regla tiene su
-verificación; si el comando devuelve algo distinto a lo esperado, la regla está rota.
+- Zona horaria de negocio: `America/Mexico_City` (SQL con `at time zone`, cliente con
+  `Intl`/`toLocaleString` en esa zona). Nunca la zona del dispositivo para "vence en N días".
+- El cliente **nunca** hace `update` directo de `tasks.status` ni de `time_entries` abiertos:
+  todo pasa por las RPC (`start_task`, `activate_task`, `pause_task`, `pause_all`,
+  `complete_task`, `reopen_task`). Un trigger lo impone en la base.
+- Máximo un timer abierto por tarea (índice único parcial); varias tareas activas en paralelo
+  sí. El tiempo en paralelo se reparte en `v_time_allocated`.
+- `user_id` lo pone un trigger desde `auth.uid()`; el cliente no lo envía.
 
-### 1. Sin source maps en producción web
-El build web no publica `.map`. Para Expo web, `expo export -p web` no los genera por defecto;
-para Next.js, `productionBrowserSourceMaps: false`.
-```bash
-# Esperado: 0 archivos
-find dist .next -name "*.map" 2>/dev/null | wc -l
-```
+## Reglas verificables (heredadas de la Factory)
 
-### 2. RLS desde el día uno
-Toda tabla en `public` tiene `enable row level security` y policies explícitas en la misma
-migración que la crea. Toda función `SECURITY DEFINER` fija `search_path` y revoca `public`.
-```bash
-# Esperado: "OK" (compara create table vs enable row level security en supabase/migrations)
-bash scripts/check-rls.sh
-# Esperado: 0 (SECURITY DEFINER sin set search_path)
-grep -rliE "security definer" supabase/migrations | xargs -r grep -LiE "set search_path" | wc -l
-```
-
-### 3. Todo por rama y PR
-Nadie empuja a `main`. En repos públicos lo impone branch protection; en privados, los hooks.
-```bash
-# Esperado: .githooks
-git config core.hooksPath
-# Esperado: bloqueado (exit 2)
-echo '{"tool_input":{"command":"git push origin main"}}' | bash .claude/hooks/guard-bash.sh; echo "exit=$?"
-```
-
-### 4. Autenticación validada en el servidor
-En server components y route handlers se usa `auth.getUser()` (valida contra Supabase), nunca
-`getSession()`. El `user_id` siempre sale de la sesión validada, jamás del body.
-`service_role` solo en código server-only.
-```bash
-# Esperado: 0 referencias a service_role fuera de supabase/ y server-only
-grep -rn "SERVICE_ROLE" --include=*.ts --include=*.tsx --include=*.js --include=*.json \
-  --exclude-dir=node_modules --exclude-dir=supabase --exclude-dir=.github . \
-  | grep -v "server-only" | grep -v ".env.example" | grep -v "CLAUDE.md" | wc -l
-# Esperado: 0 (ninguna variable pública con la llave de servicio)
-grep -rnE "(EXPO_PUBLIC|NEXT_PUBLIC|VITE)_[A-Z_]*SERVICE" --exclude-dir=node_modules . | grep -v CLAUDE.md | wc -l
-```
-
-### 5. Secretos fuera del repo y de la config de build
-`.env` está ignorado; `.env.example` no lleva valores reales. `eas.json` y `app.config.*` no
-contienen valores: las variables van por EAS environment variables.
-```bash
-# Esperado: 0 (ningún EXPO_PUBLIC_* con valor literal en eas.json)
-grep -nE '"EXPO_PUBLIC_[A-Z_]+"\s*:\s*"[^"]+"' eas.json 2>/dev/null | wc -l
-# Esperado: solo .env.example
-git ls-files | grep -E "(^|/)\.env" | grep -v "\.env\.example$" | wc -l
-# Esperado: sin hallazgos
-gitleaks git --redact --no-banner .
-```
-
-### 6. Rate limiting
-Los endpoints públicos y los flujos de Auth tienen límite. En Supabase, `auth.rate_limit` en
-la configuración del CLI refleja lo configurado en el dashboard; en servidores Next/Express se
-usa un limitador con degradación segura en local.
-```bash
-# Esperado: la sección existe y tiene valores
-grep -nE '"rate_limit"|sign_in_sign_ups|token_verifications' supabase/config.jsonc
-```
-
-### 7. Caché sin datos personales
-Solo se cachea contenido público (landing, catálogos). Vistas con datos de usuario son
-`force-dynamic` o equivalentes. Nunca se cachea una respuesta que dependa de la sesión.
-```bash
-# Esperado: revisar manualmente cada hit; ninguno debe estar en rutas con sesión
-grep -rnE "revalidate\s*=|Cache-Control|stale-while-revalidate" --include=*.ts --include=*.tsx --exclude-dir=node_modules . | grep -v CLAUDE.md
-```
-
-### 8. Sin SQL construido con strings
-Solo consultas parametrizadas (PostgREST `.eq/.insert/.select`, RPC con argumentos, `pg` con
-`$1`). Prohibido interpolar input de usuario en SQL. Toda entrada se valida con Zod antes de
-tocar la base.
-```bash
-# Esperado: 0
-grep -rnE 'from\(`|select\(`|rpc\(`|\.query\(`[^`]*\$\{' --include=*.ts --include=*.tsx --include=*.js --exclude-dir=node_modules . | grep -v CLAUDE.md | wc -l
-```
+1. **Sin source maps en producción web.** `find dist -name "*.map" | wc -l` → 0.
+2. **RLS desde el día uno.** `bash scripts/check-rls.sh` → OK; toda función `SECURITY DEFINER`
+   con `set search_path` y `revoke ... from public`.
+3. **Todo por rama y PR.** `git config core.hooksPath` → `.githooks`. Nunca `main`.
+4. **Auth validada en el servidor.** `service_role` solo server-only (aquí: ninguno).
+   `grep -rnE "(EXPO_PUBLIC|NEXT_PUBLIC|VITE)_[A-Z_]*SERVICE" --exclude-dir=node_modules . | grep -v CLAUDE.md | wc -l` → 0.
+5. **Secretos fuera del repo.** `git ls-files | grep -E "(^|/)\.env" | grep -v "\.env\.example$" | wc -l` → 0;
+   `eas.json` y `app.config.ts` sin valores.
+6. **Rate limiting.** `grep -n '"rate_limit"' supabase/config.jsonc` existe.
+7. **Caché sin datos personales.** No se cachea nada que dependa de la sesión.
+8. **Sin SQL con strings.** Solo PostgREST (`.from().select()`), RPC con argumentos; Zod antes
+   de tocar la base. `grep -rnE 'from\(`|select\(`|rpc\(`' --include=*.ts --include=*.tsx --exclude-dir=node_modules . | wc -l` → 0.
 
 ## Reglas del proyecto
 
-- Toda feature trae tests; todo cambio de base de datos trae un test RLS en `supabase/tests/`.
+- Toda feature trae tests; todo cambio de base trae un test pgTAP con dos usuarios.
 - Antes de abrir PR: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `/security-review`.
-- Nunca ejecutes `gh pr merge`, `git push --force`, `gh api` con PUT/DELETE/PATCH ni
-  `supabase db reset --linked`; nunca pongas la etiqueta `human-approved`. El hook los
-  bloquea; si lo necesitas, es una decisión humana en la terminal o en GitHub, no tuya.
-- Si el diff toca rutas de `.factory/risk-policy.yml`, dilo en la descripción del PR con el
-  riesgo y la reversa. El check `risk-gate` fallará hasta que el owner etiquete
-  `human-approved`.
-- Decisiones no triviales → ADR en `docs/adr/` (copia `0000-template.md`).
-- Acciones de terceros en workflows siempre fijadas por SHA con comentario de versión.
-- No leas ni copies `.env` (salvo `.env.example`) ni archivos de datos o credenciales
-  (`*.dump`, `*.db`, `*.sqlite*`, `*.sql.gz`, `*-backup-*.json`, `*.csv`, `*.xlsx`, `*.pem`,
-  `*.key`, `*.p12`, `*.jks`, `signing_keys.json`, `audit-log.json`, `handoff/**/*.json`).
-  Dos capas lo respaldan, y las dos protegen contra errores, no contra un agente adversarial
-  (ADR-0005): la deny-list de `permissions.deny` bloquea la herramienta Read sobre esos
-  patrones (los `.env.<entorno>` van enumerados porque deny no admite excepciones y
-  `.env.example` debe seguir legible), y `guard-bash.sh` bloquea cualquier comando de shell
-  cuyo argumento nombre uno de esos archivos por basename o ruta, sin importar el comando
-  (cat, grep, sed, awk, source, xxd, node -e, python3 -c, sqlite3…), con comillas y globs
-  normalizados. Lo que el hook no ve: rutas construidas con variables o sustituciones
-  (`cat $(…)`). Excepción deliberada: el destino de `cp`/`mv`, para permitir
-  `cp .env.example .env`.
-  ```bash
-  # Esperado: exit=2 en los tres
-  for c in 'grep KEY .env' 'cat handoff/x.json' 'sqlite3 x.db .dump'; do
-    printf '{"tool_input":{"command":"%s"}}' "$c" | bash .claude/hooks/guard-bash.sh 2>/dev/null; echo "exit=$?"
-  done
-  ```
-
-## Cómo trabajar aquí
-
-1. Analiza y propone una recomendación antes de escribir código (`/plan-phase`).
-2. Fases pequeñas y desplegables; cada una termina en PR (`/ship-pr`).
-3. Al terminar, escribe el handoff (`/handoff`) en la carpeta `MDs` del proyecto.
+- Nunca `gh pr merge`, `git push --force`, `gh api` con PUT/DELETE/PATCH, `supabase db reset
+  --linked`, ni la etiqueta `human-approved`. Son decisiones humanas.
+- Si el diff toca rutas de `.factory/risk-policy.yml` (migraciones, `.claude/`, `.githooks/`,
+  workflows, `eas.json`, `app.config.*`, lockfile…), dilo en el PR con el riesgo y la reversa.
+  `risk-gate` fallará hasta que el owner etiquete `human-approved`; el siguiente bloque sigue
+  en una rama que parte de la anterior.
+- Decisiones no triviales → ADR en `docs/adr/`.
+- No leas `.env` (salvo `.env.example`) ni archivos de datos; la deny-list y `guard-bash.sh`
+  lo bloquean (ver `.factory/` y ADR-0005 de la Factory).
+- Supabase solo local hasta la Fase 1b: no crees proyectos remotos.

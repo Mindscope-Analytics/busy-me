@@ -2,7 +2,7 @@
   "name": "busy-me",
   "version": "0.1.0",
   "private": true,
-  "description": "Plantilla de gobernanza de Mindscope Analytics: reglas para Claude Code, compuertas locales, CI y presets.",
+  "description": "Busy Me: tablero personal de tareas con cronómetros en paralelo (Expo + Supabase).",
   "license": "MIT",
   "packageManager": "pnpm@12.23.0",
   "engines": {
@@ -12,7 +12,7 @@
     "prepare": "bash scripts/setup-hooks.sh",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "jest --ci && pnpm run test:guard",
+    "test": "jest --ci && pnpm run test:guard && pnpm run test:privacy",
     "test:guard": "bash scripts/test-guard.sh",
     "lint:workflows": "actionlint",
     "check:rls": "bash scripts/check-rls.sh",
@@ -29,7 +29,8 @@
     "export:web": "expo export -p web && printf '/* /index.html 200\\n' > dist/_redirects",
     "e2e:web": "playwright test",
     "e2e:mobile": "maestro test .maestro/",
-    "deploy:web": "npx -y wrangler@4 pages deploy dist --project-name ${CF_PAGES_PROJECT:-app}"
+    "deploy:web": "npx -y wrangler@4 pages deploy dist --project-name ${CF_PAGES_PROJECT:-app}",
+    "test:privacy": "bash scripts/test-private-terms.sh"
   },
   "main": "expo-router/entry",
   "jest": {

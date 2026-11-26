@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# commit-msg — rechaza mensajes de commit que contengan un término de la lista privada.
+# Git pasa la ruta del archivo con el mensaje como $1.
+set -u
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=.githooks/private-terms.sh
+. "$HOOKS_DIR/private-terms.sh"
+pt_load_terms || exit 1
+# Se ignoran las líneas de comentario del editor (#) que git descarta de todos modos.
+grep -v '^#' "$1" | pt_check "El mensaje de commit" || exit 1
+exit 0

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# private-terms.sh — Hook PreToolUse (matcher "Bash") de Claude Code para Busy Me (repo público).
+# Bloquea (exit 2) los comandos que publican texto en GitHub cuando ese texto contiene un
+# término de la lista privada (~/.config/busy-me/private-terms.txt):
+#   gh pr create|edit|comment · gh issue create|edit|comment · git commit · git checkout -b ·
+#   git switch -c · git branch <nombre> · git push (nombre de rama en el comando).
+# Revisa el texto del comando y el contenido de los archivos pasados con -F/--body-file/
+# --file/--title-file (que es como se escriben los cuerpos largos). Nunca imprime el término.
+# Comparte la normalización y la lista con .githooks/private-terms.sh.
+set -u
+command -v jq >/dev/null 2>&1 || { echo "private-terms: falta jq; bloqueo por seguridad." >&2; exit 2; }
+input="$(cat)"
+cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
+[ -z "$cmd" ] && exit 0
+
+ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+# shellcheck source=.githooks/private-terms.sh
+. "$ROOT/.githooks/private-terms.sh"
+
+B='(^|[^A-Za-z0-9_./-])'
+publishes=0
+printf '%s' "$cmd" | grep -qE "${B}gh +(-R +[^ ]+ +)?(pr|issue) +(create|edit|comment)( |$)" && publishes=1
+printf '%s' "$cmd" | grep -qE "${B}git +(-[^ ]+ +)*commit( |$)" && publishes=1
+printf '%s' "$cmd" | grep -qE "${B}git +(-[^ ]+ +)*(checkout +-b|switch +-c|branch +[^-])" && publishes=1
+printf '%s' "$cmd" | grep -qE "${B}git +(-[^ ]+ +)*push( |$)" && publishes=1
+[ "$publishes" = 1 ] || exit 0
+
+pt_load_terms || exit 2
+
+deny() { echo "private-terms: BLOQUEADO — $1 contiene un término privado. Reescribe con descripciones genéricas (área, solicitante, tarea)." >&2; exit 2; }
+
+# 1. El texto del comando (con separadores de rama convertidos a espacios para -w).
+printf '%s\n' "$cmd" | tr '/_.-' '    ' | pt_text_has_term && deny "el comando"
+printf '%s\n' "$cmd" | pt_text_has_term && deny "el comando"
+
+# 2. Archivos referenciados (-F x, --body-file x, --file x, -F=x, --body-file=x).
+files="$(printf '%s\n' "$cmd" | grep -oE '(^| )(-F|--body-file|--file|--title-file|-t|--title|-b|--body)[ =]+("[^"]+"|'"'"'[^'"'"']+'"'"'|[^ ]+)' \
+  | sed -E 's/^ ?(-F|--body-file|--file|--title-file|-t|--title|-b|--body)[ =]+//; s/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/')"
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in /*) path="$f" ;; *) path="${cwd:-$PWD}/$f" ;; esac
+  if [ -f "$path" ] && [ -r "$path" ]; then
+    pt_text_has_term < "$path" && deny "el archivo $f"
+  fi
+done <<< "$files"
+exit 0
