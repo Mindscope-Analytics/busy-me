@@ -28,28 +28,40 @@ test.describe('tablero', () => {
     await page.getByTestId('start-now').click(); // apaga "Iniciar al guardar"
     await page.getByTestId('save-task').click();
 
-    const card = page.getByTestId(/^task-/).filter({ hasText: 'Tarea de ejemplo e2e' });
-    await expect(card).toBeVisible();
+    const inSection = (section: string) => page.getByTestId(section).getByTestId(/^task-/).filter({ hasText: 'Tarea de ejemplo e2e' });
+    // Sin "Iniciar al guardar" la tarea nace en Por iniciar
+    await expect(inSection('section-backlog')).toBeVisible();
 
-    // Activar → aparece en Activas con cronómetro corriendo
-    await card.getByTestId('activate').click();
-    await expect(card.getByTestId('pause')).toBeVisible();
-    const clock = card.getByTestId('clock');
-    await expect(clock).toHaveText(/^0:00:0\d$/);
-    await page.waitForTimeout(2_100);
-    await expect(clock).not.toHaveText('0:00:00');
+    // Activar → aparece en Activas con cronómetro corriendo (H:MM:SS que avanza)
+    await inSection('section-backlog').getByTestId('activate').click();
+    const active = inSection('section-active');
+    await expect(active).toBeVisible();
+    await expect(inSection('section-backlog')).toHaveCount(0);
+    const clock = active.getByTestId('clock');
+    await expect(clock).toHaveText(/^0:00:\d\d$/);
+    const first = await clock.textContent();
+    await expect(clock).not.toHaveText(first ?? '', { timeout: 5_000 });
 
-    // Pausar → Pendientes (botón Activar de nuevo)
-    await card.getByTestId('pause').click();
-    await expect(card.getByTestId('activate')).toBeVisible();
+    // Pausar → sale de Activas y aparece en Pendientes con reloj acumulado (Xm)
+    await active.getByTestId('pause').click();
+    const pending = inSection('section-pending');
+    await expect(pending).toBeVisible();
+    await expect(inSection('section-active')).toHaveCount(0);
+    await expect(pending.getByTestId('clock')).toHaveText(/^\d+m$/);
 
-    // Finalizar → Completadas
-    await card.getByTestId('complete').click();
-    await expect(card).toHaveCount(0);
+    // Finalizar → desaparece de Ahora y aparece en Completadas
+    await pending.getByTestId('complete').click();
+    await expect(page.getByTestId(/^task-/).filter({ hasText: 'Tarea de ejemplo e2e' })).toHaveCount(0);
     await page.getByRole('tab', { name: 'Completadas' }).or(page.getByText('Completadas', { exact: true })).first().click();
     await expect(page.getByTestId('done-screen')).toBeVisible();
-    await expect(page.getByText('Tarea de ejemplo e2e')).toBeVisible();
-    await page.getByTestId('reopen').first().click();
+    const done = page.getByTestId('done-screen').getByTestId(/^task-/).filter({ hasText: 'Tarea de ejemplo e2e' });
+    await expect(done).toBeVisible();
+
+    // Reabrir → vuelve a Pendientes en Ahora
+    await done.getByTestId('reopen').click();
+    await expect(done).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Ahora' }).or(page.getByText('Ahora', { exact: true })).first().click();
+    await expect(inSection('section-pending')).toBeVisible();
   });
 });
 

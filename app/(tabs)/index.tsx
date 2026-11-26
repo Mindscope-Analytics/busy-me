@@ -79,6 +79,7 @@ export default function NowScreen() {
           count={groups.active.length}
           right={groups.active.length > 1 ? <Button label="Pausar todas" onPress={() => void act(() => q.pauseAll())} testID="pause-all" /> : null}
         />
+        <View testID="section-active">
         {groups.active.length === 0 ? (
           <View testID="nothing-active">
             <Empty text={loading ? 'Cargando…' : 'Nada activo'} />
@@ -92,8 +93,10 @@ export default function NowScreen() {
             ])
           )
         )}
+        </View>
 
         <SectionHeader title="Pendientes" count={groups.pending.length} />
+        <View testID="section-pending">
         {groups.pending.length === 0 ? <Empty text="Sin pendientes" /> : null}
         {groups.pending.map((t) =>
           card(t, [
@@ -101,12 +104,14 @@ export default function NowScreen() {
             { label: 'Finalizar', onPress: () => void complete(t), testID: 'complete' },
           ])
         )}
+        </View>
 
         <SectionHeader
           title="Por iniciar"
           count={groups.backlog.length}
           right={<Button label={showBacklog ? 'Ocultar' : 'Mostrar'} variant="ghost" onPress={() => setShowBacklog((v) => !v)} testID="toggle-backlog" />}
         />
+        <View testID="section-backlog">
         {showBacklog
           ? groups.backlog.map((t) =>
               card(t, [
@@ -116,6 +121,7 @@ export default function NowScreen() {
             )
           : null}
         {showBacklog && groups.backlog.length === 0 ? <Empty text="Nada por iniciar" /> : null}
+        </View>
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
