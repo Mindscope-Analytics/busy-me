@@ -33,7 +33,17 @@ Android, `pnpm android` con un emulador o dispositivo conectado.
 ```bash
 pnpm lint && pnpm typecheck && pnpm test   # jest + guard + términos privados
 supabase test db                           # pgTAP
-pnpm export:web && pnpm e2e:web            # Playwright sobre dist/
+pnpm export:web && pnpm e2e:web            # Playwright sobre dist/ (solo smoke sin base)
+```
+
+El e2e del tablero (login OTP real, crear/activar/pausar/finalizar, detalle y tramo manual)
+corre contra Supabase local y en CI (job `e2e`). En local, con `supabase start` arriba:
+
+```bash
+eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|MAILPIT_URL)=')"
+EXPO_PUBLIC_SUPABASE_URL=$API_URL EXPO_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY pnpm export:web
+E2E_SUPABASE=1 E2E_MAILPIT_URL=$MAILPIT_URL pnpm e2e:web
+# Si Chromium no arranca por libnspr4/libnss3: sudo pnpm exec playwright install-deps chromium
 ```
 
 ## Pantallas (Fase 1a)

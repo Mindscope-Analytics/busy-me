@@ -120,7 +120,7 @@ export default function TaskDetailScreen() {
       <Text style={styles.totals} testID="totals">
         Reloj {task.is_active ? formatHms(clock) : formatHm(clock)} · Asignado {formatHm(task.total_allocated_seconds)}
       </Text>
-      <Text style={styles.muted}>
+      <Text style={styles.muted} testID="task-status">
         Estado: {task.status === 'backlog' ? 'por iniciar' : task.status === 'started' ? (task.is_active ? 'activa' : 'pendiente') : task.status === 'done' ? 'completada' : 'cancelada'}
       </Text>
       <View style={styles.wrap}>
@@ -289,15 +289,15 @@ function ManualEntry({ now, onAdd }: { now: Date; onAdd: (started_at: string, en
   }
   if (!openForm) return <Button label="+ Agregar tramo manual" onPress={begin} testID="add-entry" />;
   return (
-    <View style={styles.entry}>
+    <View style={styles.entry} testID="manual-entry">
       <View style={styles.wrap}>
-        <TextInput style={[styles.input, styles.half]} value={start} onChangeText={setStart} placeholder="Inicio AAAA-MM-DD HH:mm" autoCapitalize="none" />
-        <TextInput style={[styles.input, styles.half]} value={end} onChangeText={setEnd} placeholder="Fin AAAA-MM-DD HH:mm" autoCapitalize="none" />
+        <TextInput style={[styles.input, styles.half]} value={start} onChangeText={setStart} placeholder="Inicio AAAA-MM-DD HH:mm" autoCapitalize="none" testID="entry-start" />
+        <TextInput style={[styles.input, styles.half]} value={end} onChangeText={setEnd} placeholder="Fin AAAA-MM-DD HH:mm" autoCapitalize="none" testID="entry-end" />
       </View>
-      <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Nota (opcional)" maxLength={500} />
+      <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="Nota (opcional)" maxLength={500} testID="entry-note" />
       {err ? <Text style={styles.error}>{err}</Text> : null}
       <View style={styles.wrap}>
-        <Button label="Agregar" variant="primary" onPress={() => void add()} />
+        <Button label="Agregar" variant="primary" onPress={() => void add()} testID="entry-add" />
         <Button label="Cancelar" variant="ghost" onPress={() => setOpenForm(false)} />
       </View>
     </View>

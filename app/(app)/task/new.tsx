@@ -178,13 +178,13 @@ export default function NewTaskScreen() {
               {workTypes.map((w) => (
                 <Chip key={w.id} label={w.name} selected={w.id === workTypeId} onPress={() => setWorkTypeId(w.id)} />
               ))}
-              <Chip label="+ Nuevo" onPress={() => setNewType('')} />
+              <Chip label="+ Nuevo" onPress={() => setNewType('')} testID="new-work-type" />
             </View>
             {newType !== null ? (
               <View style={styles.inline}>
-                <TextInput style={styles.input} placeholder="Nombre del tipo" value={newType} onChangeText={setNewType} maxLength={80} onSubmitEditing={() => void saveType()} />
+                <TextInput style={styles.input} placeholder="Nombre del tipo" value={newType} onChangeText={setNewType} maxLength={80} onSubmitEditing={() => void saveType()} testID="work-type-name" />
                 <View style={styles.wrap}>
-                  <Button label="Guardar tipo" variant="primary" onPress={() => void saveType()} disabled={busy} />
+                  <Button label="Guardar tipo" variant="primary" onPress={() => void saveType()} disabled={busy} testID="save-work-type" />
                   <Button label="Cancelar" variant="ghost" onPress={() => setNewType(null)} />
                 </View>
               </View>

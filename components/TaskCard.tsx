@@ -29,7 +29,7 @@ export const TaskCard = memo(function TaskCard({ task, now, area, requester, wor
 
   return (
     <View style={[styles.card, task.is_active && styles.cardActive]} testID={`task-${task.id}`} accessibilityLabel={task.title}>
-      <Pressable onPress={onOpen} disabled={!onOpen} accessibilityRole={onOpen ? 'button' : undefined} style={styles.body}>
+      <Pressable onPress={onOpen} disabled={!onOpen} accessibilityRole={onOpen ? 'button' : undefined} style={styles.body} testID="open-task">
         <View style={styles.titleRow}>
           <Text style={styles.title} numberOfLines={2}>
             {task.title}

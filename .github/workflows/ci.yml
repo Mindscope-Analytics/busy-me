@@ -121,11 +121,66 @@ jobs:
           tar -xzf /tmp/al.tgz -C /tmp actionlint
       - run: /tmp/actionlint -color
 
+  e2e:
+    name: e2e web · supabase local
+    needs: changes
+    if: needs.changes.outputs.app == 'true' || needs.changes.outputs.db == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Enable pnpm (corepack)
+        run: corepack enable
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: 3.4.0
+      # Se conservan auth, rest, realtime y mailpit (el login e2e lee el OTP del buzón local).
+      - name: Start local stack
+        run: supabase start -x studio,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor
+      - name: Reset database (migrations + seed)
+        run: supabase db reset
+      # URL y anon key LOCALES (no secretos del proyecto remoto); la key se enmascara en el log.
+      - name: Export local public env
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|MAILPIT_URL)=')"
+          echo "::add-mask::$ANON_KEY"
+          {
+            echo "EXPO_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "E2E_MAILPIT_URL=$MAILPIT_URL"
+            echo "E2E_SUPABASE=1"
+          } >> "$GITHUB_ENV"
+      - name: Export web (Expo) against local Supabase
+        run: pnpm export:web
+      - name: Sin source maps en dist
+        run: test "$(find dist -name '*.map' | wc -l)" = "0"
+      - name: Playwright (chromium) · login OTP real + tablero
+        run: pnpm exec playwright install --with-deps chromium && pnpm e2e:web
+        env:
+          CI: "true"
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report-e2e
+          path: playwright-report
+          retention-days: 7
+      - name: Stop
+        if: always()
+        run: supabase stop --no-backup
+
   # <<preset-jobs>>  (scripts/apply-preset.sh inserta aquí jobs extra del preset)
 
   ci:
     name: ci
-    needs: [changes, app, db, workflows]
+    needs: [changes, app, db, e2e, workflows]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
