@@ -37,6 +37,7 @@ expect 0 allow 'término como prefijo de otra palabra' "$(cm 'feat: zorblaxes no
 expect 0 allow 'mensaje limpio'                      "$(cm 'feat(board): group tasks by status')"
 expect 0 allow 'término solo en comentario del editor' "$(cm '# Zorblax
 feat: limpio')"
+printf 'feat: ok \xff\xfe y Zorblax\n' > "$TMP/msg"; bash "$ROOT/.githooks/commit-msg" "$TMP/msg" 2>/dev/null; expect 1 deny 'mensaje con bytes no UTF-8 antes del término' "$?"
 
 echo "== fail-closed =="
 BUSYME_PRIVATE_TERMS="$TMP/no-existe.txt" bash "$ROOT/.githooks/commit-msg" "$TMP/msg" 2>/dev/null; expect 1 deny 'sin lista → rechaza' "$?"
@@ -59,6 +60,9 @@ stage 'notes/a.md' 'FULANITO PÉREZ';               expect 1 deny  'contenido co
 stage 'notes/a.md' 'xql sxq xq1';                  expect 0 allow 'sigla solo dentro de palabras' "$(pc)"; reset_index
 stage 'src/board.ts' 'export const a = 1;';        expect 0 allow 'contenido limpio'              "$(pc)"; reset_index
 printf '\x00\x01Zorblax\x02' > "$R/img.bin"; git -C "$R" add -A; expect 0 allow 'binario: no se inspecciona' "$(pc)"; reset_index
+printf 'ok \xff\xfe luego Zorblax\n' > "$R/latin.txt"; git -C "$R" add -A; expect 1 deny 'texto con bytes no UTF-8 antes del término' "$(pc)"; reset_index
+stage 'notas/año nuevo.md' 'limpio'; git -C "$R" -c core.hooksPath=/dev/null commit -qm base >/dev/null; git -C "$R" mv 'notas/año nuevo.md' 'notas/plan.md'; printf 'ahora con Zorblax' > "$R/notas/plan.md"; git -C "$R" add -A
+expect 1 deny 'archivo renombrado (ruta con acento) con término' "$(pc)"; reset_index
 
 echo "== pre-push (nombre de rama) =="
 pp() { printf '%s\n' "$1" | bash "$ROOT/.githooks/pre-push" origin >/dev/null 2>&1; echo $?; }
